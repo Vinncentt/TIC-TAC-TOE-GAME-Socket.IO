@@ -1,0 +1,105 @@
+const { Socket } = require('socket.io');
+const express = require('express')
+
+const app = express();
+const http = require('http').createServer(app);
+const path = require('path');
+const port = 8000;
+
+/**
+ * @type {Socket}
+ */
+
+
+const io = require('socket.io')(http);
+app.use(express.static('public'))
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'templates/index.html'))
+});
+
+app.get('/games/tic-tac-toe', (req, res) => {
+    res.sendFile(path.join(__dirname, 'templates/games/tic-tac-toe.html'))
+});
+
+http.listen(port, () => {
+    console.log(`listening on http://localhost:${port}/`);
+});
+
+let rooms = [];
+
+io.on('connection', (socket) => {
+    console.log(`[connection] ${socket.id}`);
+    socket.on('playerData', (player) => {
+
+        console.log(`[playerData] ${player.username}`);
+        let room = null;
+
+        if (!player.roomId) {
+            room = createRoom(player);
+            console.log(`[createRoom] - ${room.id} - ${player.username}`);
+        } else {
+            room = rooms.find(room => room.id === player.roomId);
+            room.players.push(player);
+            console.log(`[joinRoom] - ${room.id} - ${player.username}`);
+            if (room === undefined) {
+                return;
+            }
+
+            player.roomId = room.id;
+            
+            if (room.players.length < 2) {
+                room.players.push(player);
+            }
+        };
+
+        socket.join(room.id);
+
+        io.to(socket.id).emit('join room', room.id);
+
+        if (room.players.length === 2) {
+            io.to(room.id).emit('start game', room.players);
+
+        };
+    });
+
+    socket.on('get rooms', () => {
+        io.to(socket.id).emit('rooms list', rooms);
+    });
+
+    socket.on('play', (player) => {
+        io.to(player.roomId).emit('play', player);
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[disconnect] ${socket.id}`);
+        let room = null;
+
+        rooms.forEach(r => {
+            r.players.forEach(p => {
+                if (p.socketId === socket.id && p.host) {
+                    room = r;
+                    rooms = rooms.filter(r => r !== room);
+                }
+            });
+        });
+    });
+
+});
+
+
+
+function createRoom(player) {
+    const room = { id: roomId(), players: [] };
+
+    player.roomId = room.id;
+    room.players.push(player);
+    rooms.push(room);
+
+    return room;
+};
+
+function roomId() {
+    return Math.random().toString(36).substring(2, 9);
+};
+
