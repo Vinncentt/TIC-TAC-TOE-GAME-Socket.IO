@@ -4,7 +4,7 @@ const express = require('express')
 const app = express();
 const http = require('http').createServer(app);
 const path = require('path');
-const port = 8000;
+const port = process.env.PORT || 8000;
 
 /**
  * @type {Socket}
@@ -47,7 +47,7 @@ io.on('connection', (socket) => {
             }
 
             player.roomId = room.id;
-            
+
             if (room.players.length < 2) {
                 room.players.push(player);
             }
